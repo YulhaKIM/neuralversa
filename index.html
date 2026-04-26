@@ -1381,6 +1381,69 @@ var articleSource='neuro';
 var currentArticleItem=null;
 var detailLang='ko';
 
+/* ── PERSIST: localStorage 저장/복원 유틸 ── */
+var LNV = {
+  save: function(key, val){
+    try{ localStorage.setItem('lnv_'+key, JSON.stringify(val)); }catch(e){}
+  },
+  load: function(key){
+    try{
+      var v = localStorage.getItem('lnv_'+key);
+      return v ? JSON.parse(v) : null;
+    }catch(e){ return null; }
+  },
+  /* 앱 시작 시 저장된 데이터로 배열 교체 */
+  restore: function(){
+    var n = LNV.load('neuro');
+    if(n && n.length) neuroNews = n;
+    var ns = LNV.load('nursing');
+    if(ns && ns.length) nursingNews = ns;
+    var a = LNV.load('activities');
+    if(a) activities = a;
+    var lk = LNV.load('lifeko');
+    if(lk && lk.length) lifeDataKo = lk;
+    var le = LNV.load('lifeen');
+    if(le && le.length) lifeDataEn = le;
+    /* 홈 텍스트 복원 */
+    var g = LNV.load('general');
+    if(g){
+      var eyeEl = document.getElementById('home-eyebrow-el');
+      var subEl = document.getElementById('home-sub-el');
+      if(eyeEl && g.eyeKo){
+        eyeEl.setAttribute('data-ko', g.eyeKo);
+        eyeEl.setAttribute('data-en', g.eyeEn||g.eyeKo);
+        eyeEl.textContent = g.eyeKo;
+      }
+      if(subEl && g.subKo){
+        subEl.setAttribute('data-ko', g.subKo);
+        subEl.setAttribute('data-en', g.subEn||g.subKo);
+        subEl.textContent = g.subKo;
+      }
+      /* 관리자 패널 입력값도 복원 */
+      var f = function(id, val){var el=document.getElementById(id);if(el&&val)el.value=val;};
+      f('ad-eyebrow-ko', g.eyeKo); f('ad-eyebrow-en', g.eyeEn);
+      f('ad-sub-ko', g.subKo);     f('ad-sub-en', g.subEn);
+    }
+    /* Connect 페이지 복원 */
+    var c = LNV.load('connect');
+    if(c){
+      var el; var dUrl;
+      el=document.getElementById('con-disp-email');
+      if(el&&c.email) el.innerHTML='<a href="mailto:'+c.email+'">'+c.email+'</a>';
+      el=document.getElementById('con-disp-school');
+      if(el) el.innerHTML='<strong>'+(c.school||'')+'</strong><br><span style="color:var(--text-secondary);font-size:13px;">'+(c.addr||'')+'</span>';
+      el=document.getElementById('con-disp-url');
+      if(el&&c.url){ dUrl=c.url.replace(/^https?:\/\//, ''); el.innerHTML='<a href="'+c.url+'" target="_blank">'+dUrl+'</a>'; }
+      el=document.getElementById('con-disp-major');
+      if(el&&c.majKo){ el.setAttribute('data-ko',c.majKo); el.setAttribute('data-en',c.majEn||c.majKo); el.textContent=c.majKo; }
+      /* 관리자 패널 입력값 복원 */
+      var f2=function(id,val){var e2=document.getElementById(id);if(e2&&val)e2.value=val;};
+      f2('con-email',c.email); f2('con-school',c.school); f2('con-addr',c.addr);
+      f2('con-url',c.url); f2('con-major-ko',c.majKo); f2('con-major-en',c.majEn);
+    }
+  }
+};
+
 /* ── LANG ── */
 function setLang(lang){
   currentLang=lang;
@@ -1743,6 +1806,7 @@ function adminUpdateNewsImg(elId,idx,input){
   r.onload=function(e){
     var data=elId.indexOf('neuro')>=0?neuroNews:nursingNews;
     data[idx].img=e.target.result;
+    if(elId.indexOf('neuro')>=0) LNV.save('neuro',neuroNews); else LNV.save('nursing',nursingNews);
     buildNewsAdmin(elId,data);
   };
   r.readAsDataURL(input.files[0]);
@@ -1759,6 +1823,7 @@ function saveOneNewsItem(elId,i){
   if(g('ani-'+elId+'-'+i+'-den')) item.detailEn=g('ani-'+elId+'-'+i+'-den');
   if(g('ani-'+elId+'-'+i+'-dt'))  item.date=g('ani-'+elId+'-'+i+'-dt');
   renderGrid(elId.indexOf('neuro')>=0?'neuro-grid':'nursing-grid',data);
+  if(elId.indexOf('neuro')>=0) LNV.save('neuro', neuroNews); else LNV.save('nursing', nursingNews);
   alert('#'+(i+1)+' 저장되었습니다.');
 }
 function buildActAdminPanel(){
@@ -1791,17 +1856,19 @@ function saveOneActivity(i){
   if(g('act-ad-'+i+'-date'))  activities[i].date=g('act-ad-'+i+'-date');
   if(g('act-ad-'+i+'-content')){activities[i].content=g('act-ad-'+i+'-content');activities[i].contentEn=g('act-ad-'+i+'-content');}
   renderActivities();
+  LNV.save('activities', activities);
   alert('#'+(i+1)+' 저장되었습니다.');
 }
 function adminUpdateActImg(idx,input){
   if(!input.files||!input.files[0]) return;
   var r=new FileReader();
-  r.onload=function(e){activities[idx].img=e.target.result;buildActAdminPanel();};
+  r.onload=function(e){activities[idx].img=e.target.result;LNV.save('activities',activities);buildActAdminPanel();};
   r.readAsDataURL(input.files[0]);
 }
 function deleteActivity(i){
   if(!confirm('활동을 삭제하시겠습니까?')) return;
   activities.splice(i,1);
+  LNV.save('activities', activities);
   renderActivities();
   buildActAdminPanel();
 }
@@ -1813,6 +1880,7 @@ function saveActAdmin(){
     if(g('act-ad-'+i+'-content')){a.content=g('act-ad-'+i+'-content');a.contentEn=g('act-ad-'+i+'-content');}
   });
   renderActivities();
+  LNV.save('activities', activities);
   alert('모두 저장되었습니다.');
 }
 function buildLifeAdminPanel(){
@@ -1832,12 +1900,15 @@ function buildLifeAdminPanel(){
 }
 function deleteNewsItem(elId,idx){
   if(!confirm('삭제하시겠습니까?')) return;
-  if(elId.indexOf('neuro')>=0) neuroNews.splice(idx,1); else nursingNews.splice(idx,1);
+  if(elId.indexOf('neuro')>=0){ neuroNews.splice(idx,1); LNV.save('neuro', neuroNews); }
+  else { nursingNews.splice(idx,1); LNV.save('nursing', nursingNews); }
   buildNewsAdmin(elId,elId.indexOf('neuro')>=0?neuroNews:nursingNews);
 }
 function deleteLifeEp(ci,ei){
   if(!confirm('삭제하시겠습니까?')) return;
   lifeDataKo[ci].eps.splice(ei,1);lifeDataEn[ci].eps.splice(ei,1);
+  LNV.save('lifeko', lifeDataKo);
+  LNV.save('lifeen', lifeDataEn);
   buildLifeAdminPanel();
 }
 function saveNewsAdmin(type){
@@ -1854,6 +1925,7 @@ function saveNewsAdmin(type){
     if(g('ani-'+elId+'-'+i+'-dt'))  item.date=g('ani-'+elId+'-'+i+'-dt');
   });
   renderGrid(type==='neuro'?'neuro-grid':'nursing-grid',data);
+  if(type==='neuro') LNV.save('neuro', neuroNews); else LNV.save('nursing', nursingNews);
   alert('모두 저장되었습니다.');
 }
 function saveLifeAdmin(){
@@ -1887,6 +1959,7 @@ function saveGeneral(){
     subEl.textContent = currentLang === 'ko' ? subKo : (subEn || subKo);
   }
 
+  LNV.save('general', {eyeKo:eyeKo, eyeEn:eyeEn||eyeKo, subKo:subKo, subEn:subEn||subKo});
   alert('✓ 메인 화면 텍스트가 업데이트되었습니다.');
 }
 function changePw(){
@@ -1958,6 +2031,7 @@ function adminAddNews(type){
   if(pp) pp.style.display='none';
   var pi=document.getElementById(pre+'-photo-img');
   if(pi) pi.src='';
+  if(isN) LNV.save('neuro', neuroNews); else LNV.save('nursing', nursingNews);
   toggleAdminAddForm(isN?'neuro-add-form':'nursing-add-form');
   alert('등록되었습니다!');
 }
@@ -1975,6 +2049,7 @@ function adminAddActivity(){
   ['adact-title','adact-content'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('adact-date').value='';
   var pp=document.getElementById('adact-photo-preview');if(pp) pp.style.display='none';
+  LNV.save('activities', activities);
   toggleAdminAddForm('act-add-form');
   alert('등록되었습니다!');
 }
@@ -1991,6 +2066,8 @@ function adminAddLifeEp(){
   renderLife();
   buildLifeAdminPanel();
   ['adlife-title','adlife-title-en','adlife-body','adlife-body-en'].forEach(function(id){document.getElementById(id).value='';});
+  LNV.save('lifeko', lifeDataKo);
+  LNV.save('lifeen', lifeDataEn);
   toggleAdminAddForm('life-add-form');
   alert('등록되었습니다!');
 }
@@ -2029,12 +2106,18 @@ function saveConnectAdmin(){
     elMajor.textContent = currentLang === 'ko' ? majKo : majEn;
   }
 
+  LNV.save('connect', {email:email, school:school, addr:addr, url:url, majKo:majKo, majEn:majEn});
   msg.style.color = 'var(--accent3)';
   msg.textContent = '✓ Connect 페이지가 업데이트되었습니다.';
   setTimeout(function(){ msg.textContent = ''; }, 3000);
 }
 
 document.getElementById('admin-modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+
+/* ── 앱 시작: localStorage에서 데이터 복원 ── */
+document.addEventListener('DOMContentLoaded', function(){
+  LNV.restore();
+});
 /* ── BROWSER HISTORY (뒤로가기 지원) ── */
 window.addEventListener('popstate', function(e){
   var state = e.state;
